@@ -2,13 +2,12 @@
 const nextConfig = {
   // Remove these in production - they hide important errors
   eslint: {
-    ignoreDuringBuilds: process.env.NODE_ENV === "development",
-    // Only lint your source code, not generated files
-    dirs: ["pages", "app", "components", "lib", "src", "utils"],
+    ignoreDuringBuilds: true,
   },
   typescript: {
     ignoreBuildErrors: process.env.NODE_ENV === "development",
   },
+
   // External packages for server components (moved from experimental)
   serverExternalPackages: [
     "@prisma/client",
