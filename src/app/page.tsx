@@ -1,3 +1,4 @@
+import { UserProfile } from '@/components/core/UserProfile'
 import { Button } from '@/components/ui/button'
 import React from 'react'
 
@@ -7,7 +8,7 @@ const MainPage = () => {
       <div
         className="backdrop-blur-md bg-white/30 rounded-xl shadow-xl p-8 flex flex-col items-center"
       >
-        <Button>Click Me</Button>
+        <UserProfile />
       </div>
     </div >
   )
