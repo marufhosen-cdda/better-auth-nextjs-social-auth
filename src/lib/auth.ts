@@ -12,9 +12,9 @@ export const auth = betterAuth({
             clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
         },
     },
-    baseURL: process.env.BETTER_AUTH_URL || "http://localhost:3000",
+    baseURL: process.env.BETTER_AUTH_URL || "https://better-auth-nextjs-social-auth.vercel.app",
     trustedOrigins: [
-        process.env.BETTER_AUTH_URL || "http://localhost:3000"
+        process.env.BETTER_AUTH_URL || "https://better-auth-nextjs-social-auth.vercel.app"
     ],
     secret: process.env.BETTER_AUTH_SECRET!,
     session: {

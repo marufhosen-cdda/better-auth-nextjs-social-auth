@@ -19,11 +19,13 @@ export async function middleware(request: NextRequest) {
         pathname.startsWith(route)
     );
 
+    const baseURL = process.env.NEXT_PUBLIC_BETTER_AUTH_URL || "https://better-auth-nextjs-social-auth.vercel.app"
+
     if (isProtectedRoute) {
         try {
             // Use fetch to check session instead of direct auth import
             const sessionResponse = await fetch(
-                new URL('/api/auth/get-session', request.url),
+                new URL(`${baseURL}/api/auth/get-session`, request.url),
                 {
                     headers: {
                         'cookie': request.headers.get('cookie') || '',
