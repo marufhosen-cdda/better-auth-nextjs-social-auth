@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from "react";
 import { authClient } from "@/lib/auth-client";
 import { Device } from "@twilio/voice-sdk";
 
-// Extend Window interface for twilioDevice
+// Extend Window interface to include twilioDevice
 declare global {
     interface Window {
         twilioDevice?: Device;
@@ -320,7 +320,7 @@ export default function CallInterface() {
         console.log('Active call:', activeCall);
 
         // Try to access the actual Twilio device from window if available
-        if (window && window.twilioDevice) {
+        if (window.twilioDevice) {
             console.log('Window device state:', window.twilioDevice.state);
             console.log('Window device ready:', window.twilioDevice.state === 'registered');
         }
