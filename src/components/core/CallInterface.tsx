@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from "react";
 import { authClient } from "@/lib/auth-client";
 import { Device } from "@twilio/voice-sdk";
 
-// Extend Window interface to include twilioDevice
+// Extend the Window interface to include twilioDevice
 declare global {
     interface Window {
         twilioDevice?: Device;
@@ -333,9 +333,6 @@ export default function CallInterface() {
         }
     }, [device]);
 
-    console.log('Render CallInterface with device:', device, 'callState:', callState);
-
-
     return (
         <div className="max-w-md mx-auto bg-white rounded-2xl shadow-xl overflow-hidden">
             {/* Header */}
@@ -487,7 +484,7 @@ export default function CallInterface() {
                         {/* Conference Calling */}
                         <div className="mb-6">
                             <button
-                                onClick={() => session?.user?.id && startConference([session.user.id])}
+                                onClick={() => session && startConference([session.user.id])}
                                 className="w-full bg-purple-500 hover:bg-purple-600 text-white p-3 rounded-lg transition-all"
                             >
                                 Start Conference Call
