@@ -333,6 +333,9 @@ export default function CallInterface() {
         }
     }, [device]);
 
+    console.log('Render CallInterface with device:', device, 'callState:', callState);
+
+
     return (
         <div className="max-w-md mx-auto bg-white rounded-2xl shadow-xl overflow-hidden">
             {/* Header */}
