@@ -515,13 +515,13 @@ export default function CallInterface() {
                 <div className="mt-2 flex space-x-2">
                     <button
                         onClick={debugDeviceState}
-                        className="text-xs bg-white bg-opacity-20 px-2 py-1 rounded"
+                        className="text-xs bg-opacity-20 px-2 py-1 rounded"
                     >
                         Debug
                     </button>
                     <button
                         onClick={refreshDevice}
-                        className="text-xs bg-white bg-opacity-20 px-2 py-1 rounded"
+                        className="text-xs bg-opacity-20 px-2 py-1 rounded"
                     >
                         Refresh
                     </button>
