@@ -33,9 +33,21 @@ interface ConferenceCall {
     }>;
 }
 
+interface DeviceState {
+    device: Device | null;
+    isReady: boolean;
+    isRegistered: boolean;
+    error: string | null;
+}
+
 export default function CallInterface() {
     const { data: session } = authClient.useSession();
-    const [device, setDevice] = useState<Device | null>(null);
+    const [deviceState, setDeviceState] = useState<DeviceState>({
+        device: null,
+        isReady: false,
+        isRegistered: false,
+        error: null
+    });
     const [dialNumber, setDialNumber] = useState("");
     const [callState, setCallState] = useState<CallState>({
         isConnected: false,
@@ -54,41 +66,86 @@ export default function CallInterface() {
     const [isForwardingEnabled, setIsForwardingEnabled] = useState(false);
     const [activeCall, setActiveCall] = useState<any>(null);
     const callTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const [isInitializing, setIsInitializing] = useState(false);
 
     // Initialize Twilio Device
     useEffect(() => {
-        if (session?.user) {
+        if (session?.user && !deviceState.device && !isInitializing) {
             initializeTwilioDevice();
         }
         return () => {
             if (callTimerRef.current) {
                 clearInterval(callTimerRef.current);
             }
+            // Cleanup device on unmount
+            if (deviceState.device) {
+                deviceState.device.destroy();
+            }
         };
     }, [session]);
 
     const initializeTwilioDevice = async () => {
+        setIsInitializing(true);
+
         try {
+            console.log('Initializing Twilio device for user:', session?.user.id);
+
             const response = await fetch('/api/twilio/token', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ identity: session?.user.id })
             });
 
+            if (!response.ok) {
+                throw new Error(`Token request failed: ${response.status}`);
+            }
+
             const { token } = await response.json();
+            console.log('Received token, creating device...');
 
             const twilioDevice = new Device(token, {
                 edge: 'sydney',
-                logLevel: 1
+                logLevel: 1,
+                // enableRingingState: true,
+                enumerateDevices: true,
+                allowIncomingWhileBusy: true
             });
 
+            // Set up all event listeners before registering
             twilioDevice.on('ready', () => {
-                console.log('Twilio Device Ready');
-                setDevice(twilioDevice);
+                console.log('Twilio Device Ready - State:', twilioDevice.state);
+                setDeviceState(prev => ({
+                    ...prev,
+                    device: twilioDevice,
+                    isReady: true,
+                    isRegistered: twilioDevice.state === 'registered',
+                    error: null
+                }));
+            });
+
+            twilioDevice.on('registered', () => {
+                console.log('Twilio Device Registered');
+                setDeviceState(prev => ({
+                    ...prev,
+                    isRegistered: true,
+                    error: null
+                }));
+            });
+
+            twilioDevice.on('unregistered', () => {
+                console.log('Twilio Device Unregistered');
+                setDeviceState(prev => ({
+                    ...prev,
+                    isRegistered: false
+                }));
             });
 
             twilioDevice.on('error', (error) => {
                 console.error('Twilio Device Error:', error);
+                setDeviceState(prev => ({
+                    ...prev,
+                    error: error.message || 'Unknown device error'
+                }));
             });
 
             twilioDevice.on('incoming', (call) => {
@@ -97,16 +154,29 @@ export default function CallInterface() {
             });
 
             twilioDevice.on('disconnect', () => {
+                console.log('Device disconnected');
                 resetCallState();
             });
 
+            // Store in window for debugging
+            window.twilioDevice = twilioDevice;
+
+            console.log('Registering device...');
             await twilioDevice.register();
+
         } catch (error) {
             console.error('Failed to initialize Twilio device:', error);
+            setDeviceState(prev => ({
+                ...prev,
+                error: error instanceof Error ? error.message : 'Failed to initialize device'
+            }));
+        } finally {
+            setIsInitializing(false);
         }
     };
 
     const handleIncomingCall = (call: any) => {
+        console.log('Handling incoming call:', call.parameters);
         setActiveCall(call);
         setCallState(prev => ({
             ...prev,
@@ -118,29 +188,56 @@ export default function CallInterface() {
         }));
 
         call.on('accept', () => {
+            console.log('Call accepted');
             startCallTimer();
-            setCallState(prev => ({ ...prev, isConnected: true, status: 'connected', isIncoming: false }));
+            setCallState(prev => ({
+                ...prev,
+                isConnected: true,
+                status: 'connected',
+                isIncoming: false
+            }));
         });
 
         call.on('disconnect', () => {
+            console.log('Call disconnected');
+            resetCallState();
+        });
+
+        call.on('reject', () => {
+            console.log('Call rejected');
             resetCallState();
         });
     };
 
     const makeCall = async (number: string, isAppToApp: boolean = false) => {
-        if (!device || !number) return;
+        if (!deviceState.device || !deviceState.isRegistered || !number) {
+            console.error('Cannot make call:', {
+                hasDevice: !!deviceState.device,
+                isRegistered: deviceState.isRegistered,
+                hasNumber: !!number
+            });
+            return;
+        }
 
         try {
+            console.log('Making call to:', number, 'App-to-app:', isAppToApp);
             setCallState(prev => ({ ...prev, status: 'connecting' }));
 
-            const params: any = isAppToApp
-                ? { To: number, isAppToApp: true, identity: session?.user.id }
-                : { To: number, From: process.env.NEXT_PUBLIC_TWILIO_PHONE_NUMBER };
+            const params: any = {
+                To: number,
+            };
 
-            const call = await device.connect(params);
+            if (isAppToApp) {
+                params.isAppToApp = 'true';
+            }
+
+            console.log('Call parameters:', params);
+            const call = await deviceState.device.connect(params);
+            console.log('Call object created:', call);
             setActiveCall(call);
 
             call.on('accept', () => {
+                console.log('Outgoing call accepted');
                 startCallTimer();
                 setCallState(prev => ({
                     ...prev,
@@ -153,23 +250,35 @@ export default function CallInterface() {
             });
 
             call.on('disconnect', () => {
+                console.log('Outgoing call disconnected');
+                resetCallState();
+            });
+
+            call.on('reject', () => {
+                console.log('Outgoing call rejected');
                 resetCallState();
             });
 
         } catch (error) {
             console.error('Call failed:', error);
             setCallState(prev => ({ ...prev, status: 'idle' }));
+            setDeviceState(prev => ({
+                ...prev,
+                error: error instanceof Error ? error.message : 'Call failed'
+            }));
         }
     };
 
     const answerCall = () => {
         if (activeCall) {
+            console.log('Answering call');
             activeCall.accept();
         }
     };
 
     const rejectCall = () => {
         if (activeCall) {
+            console.log('Rejecting call');
             activeCall.reject();
             resetCallState();
         }
@@ -177,6 +286,7 @@ export default function CallInterface() {
 
     const hangUpCall = () => {
         if (activeCall) {
+            console.log('Hanging up call');
             activeCall.disconnect();
         }
         resetCallState();
@@ -185,6 +295,7 @@ export default function CallInterface() {
     const toggleMute = () => {
         if (activeCall) {
             const newMuteState = !callState.isMuted;
+            console.log('Toggling mute:', newMuteState);
             activeCall.mute(newMuteState);
             setCallState(prev => ({ ...prev, isMuted: newMuteState }));
         }
@@ -195,6 +306,7 @@ export default function CallInterface() {
 
         try {
             const newHoldState = !callState.isOnHold;
+            console.log('Toggling hold:', newHoldState);
 
             await fetch('/api/twilio/hold', {
                 method: 'POST',
@@ -215,6 +327,7 @@ export default function CallInterface() {
         if (!callForwardNumber || !callState.callSid) return;
 
         try {
+            console.log('Forwarding call to:', callForwardNumber);
             await fetch('/api/twilio/forward', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -230,6 +343,7 @@ export default function CallInterface() {
 
     const startConference = async (participants: string[]) => {
         try {
+            console.log('Starting conference with participants:', participants);
             const response = await fetch('/api/twilio/conference', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -250,6 +364,7 @@ export default function CallInterface() {
         if (!conference) return;
 
         try {
+            console.log('Adding participant to conference:', number);
             await fetch('/api/twilio/conference/add', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -264,12 +379,16 @@ export default function CallInterface() {
     };
 
     const startCallTimer = () => {
+        if (callTimerRef.current) {
+            clearInterval(callTimerRef.current);
+        }
         callTimerRef.current = setInterval(() => {
             setCallState(prev => ({ ...prev, duration: prev.duration + 1 }));
         }, 1000);
     };
 
     const resetCallState = () => {
+        console.log('Resetting call state');
         if (callTimerRef.current) {
             clearInterval(callTimerRef.current);
             callTimerRef.current = null;
@@ -305,33 +424,57 @@ export default function CallInterface() {
         setDialNumber(prev => prev + digit);
         // Send DTMF tone if in call
         if (activeCall && callState.isConnected) {
+            console.log('Sending DTMF:', digit);
             activeCall.sendDigits(digit);
         }
     };
 
     const debugDeviceState = () => {
         console.log('=== DEVICE STATE DEBUG ===');
-        console.log('React state device:', !!device);
-        console.log('Device object:', device);
-        console.log('Device state:', device?.state);
-        console.log('Device isBusy:', device?.isBusy);
+        console.log('React deviceState:', deviceState);
+        console.log('Device object:', deviceState.device);
+        console.log('Device state:', deviceState.device?.state);
+        console.log('Device isBusy:', deviceState.device?.isBusy);
         console.log('Session user ID:', session?.user?.id);
         console.log('Call state:', callState);
         console.log('Active call:', activeCall);
 
-        // Try to access the actual Twilio device from window if available
         if (window.twilioDevice) {
             console.log('Window device state:', window.twilioDevice.state);
             console.log('Window device ready:', window.twilioDevice.state === 'registered');
         }
     };
 
-    // Store device in window for debugging
-    useEffect(() => {
-        if (device) {
-            window.twilioDevice = device;
+    const refreshDevice = async () => {
+        console.log('Refreshing device...');
+        if (deviceState.device) {
+            try {
+                await deviceState.device.destroy();
+            } catch (error) {
+                console.error('Error destroying device:', error);
+            }
         }
-    }, [device]);
+        setDeviceState({
+            device: null,
+            isReady: false,
+            isRegistered: false,
+            error: null
+        });
+        if (session?.user) {
+            await initializeTwilioDevice();
+        }
+    };
+
+    // Get connection status for display
+    const getConnectionStatus = () => {
+        if (isInitializing) return { color: 'bg-yellow-400', text: 'Initializing...' };
+        if (deviceState.error) return { color: 'bg-red-400', text: 'Error' };
+        if (deviceState.isRegistered) return { color: 'bg-green-400', text: 'Connected' };
+        if (deviceState.isReady) return { color: 'bg-yellow-400', text: 'Ready' };
+        return { color: 'bg-red-400', text: 'Disconnected' };
+    };
+
+    const connectionStatus = getConnectionStatus();
 
     return (
         <div className="max-w-md mx-auto bg-white rounded-2xl shadow-xl overflow-hidden">
@@ -340,10 +483,33 @@ export default function CallInterface() {
                 <div className="flex items-center justify-between">
                     <h2 className="text-xl font-bold">Voice Call</h2>
                     <div className="flex items-center space-x-2">
-                        <div className={`w-3 h-3 rounded-full ${device ? 'bg-green-400' : 'bg-red-400'}`}></div>
-                        <span className="text-sm">{device ? 'Connected' : 'Disconnected'}</span>
+                        <div className={`w-3 h-3 rounded-full ${connectionStatus.color}`}></div>
+                        <span className="text-sm">{connectionStatus.text}</span>
                     </div>
                 </div>
+
+                {/* Debug Controls */}
+                <div className="mt-2 flex space-x-2">
+                    <button
+                        onClick={debugDeviceState}
+                        className="text-xs bg-white bg-opacity-20 px-2 py-1 rounded"
+                    >
+                        Debug
+                    </button>
+                    <button
+                        onClick={refreshDevice}
+                        className="text-xs bg-white bg-opacity-20 px-2 py-1 rounded"
+                    >
+                        Refresh
+                    </button>
+                </div>
+
+                {/* Error Display */}
+                {deviceState.error && (
+                    <div className="mt-2 text-xs bg-red-500 bg-opacity-50 p-2 rounded">
+                        Error: {deviceState.error}
+                    </div>
+                )}
             </div>
 
             {/* Call Status Display */}
@@ -445,7 +611,7 @@ export default function CallInterface() {
                         <div className="grid grid-cols-2 gap-4 mb-6">
                             <button
                                 onClick={() => makeCall(dialNumber, false)}
-                                disabled={!dialNumber || !device}
+                                disabled={!dialNumber || !deviceState.isRegistered}
                                 className="flex items-center justify-center space-x-2 bg-green-500 hover:bg-green-600 disabled:bg-gray-300 text-white p-4 rounded-lg transition-all"
                             >
                                 <span>📞</span>
@@ -453,7 +619,7 @@ export default function CallInterface() {
                             </button>
                             <button
                                 onClick={() => makeCall(dialNumber, true)}
-                                disabled={!dialNumber || !device}
+                                disabled={!dialNumber || !deviceState.isRegistered}
                                 className="flex items-center justify-center space-x-2 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white p-4 rounded-lg transition-all"
                             >
                                 <span>📱</span>
@@ -485,7 +651,8 @@ export default function CallInterface() {
                         <div className="mb-6">
                             <button
                                 onClick={() => session && startConference([session.user.id])}
-                                className="w-full bg-purple-500 hover:bg-purple-600 text-white p-3 rounded-lg transition-all"
+                                disabled={!deviceState.isRegistered}
+                                className="w-full bg-purple-500 hover:bg-purple-600 disabled:bg-gray-300 text-white p-3 rounded-lg transition-all"
                             >
                                 Start Conference Call
                             </button>
