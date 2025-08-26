@@ -67,6 +67,7 @@ export default function CallInterface() {
     const [activeCall, setActiveCall] = useState<any>(null);
     const callTimerRef = useRef<NodeJS.Timeout | null>(null);
     const [isInitializing, setIsInitializing] = useState(false);
+    const deviceRef = useRef<Device | null>(null); // Add device ref for reliable access
 
     // Initialize Twilio Device
     useEffect(() => {
@@ -78,8 +79,9 @@ export default function CallInterface() {
                 clearInterval(callTimerRef.current);
             }
             // Cleanup device on unmount
-            if (deviceState.device) {
-                deviceState.device.destroy();
+            if (deviceRef.current) {
+                deviceRef.current.destroy();
+                deviceRef.current = null;
             }
         };
     }, [session]);
@@ -106,17 +108,23 @@ export default function CallInterface() {
             const twilioDevice = new Device(token, {
                 edge: 'sydney',
                 logLevel: 1,
-                // enableRingingState: true,
-                enumerateDevices: true,
                 allowIncomingWhileBusy: true
             });
 
             // Set up all event listeners before registering
+            // Set device in state AND ref immediately after creation
+            deviceRef.current = twilioDevice;
+            setDeviceState(prev => ({
+                ...prev,
+                device: twilioDevice,
+                error: null
+            }));
+
             twilioDevice.on('ready', () => {
                 console.log('Twilio Device Ready - State:', twilioDevice.state);
                 setDeviceState(prev => ({
                     ...prev,
-                    device: twilioDevice,
+                    device: twilioDevice, // Ensure device is always set
                     isReady: true,
                     isRegistered: twilioDevice.state === 'registered',
                     error: null
@@ -127,6 +135,7 @@ export default function CallInterface() {
                 console.log('Twilio Device Registered');
                 setDeviceState(prev => ({
                     ...prev,
+                    device: twilioDevice, // Ensure device object is preserved
                     isRegistered: true,
                     error: null
                 }));
@@ -210,11 +219,25 @@ export default function CallInterface() {
     };
 
     const makeCall = async (number: string, isAppToApp: boolean = false) => {
-        if (!deviceState.device || !deviceState.isRegistered || !number) {
+        // Use deviceRef as primary source, fallback to state
+        const device = deviceRef.current || deviceState.device;
+
+        console.log('=== MAKE CALL DEBUG ===');
+        console.log('deviceRef.current:', !!deviceRef.current);
+        console.log('deviceState.device:', !!deviceState.device);
+        console.log('deviceState.isRegistered:', deviceState.isRegistered);
+        console.log('device (final):', !!device);
+        console.log('device.state:', device?.state);
+        console.log('number:', number);
+
+        if (!device || !deviceState.isRegistered || !number) {
             console.error('Cannot make call:', {
-                hasDevice: !!deviceState.device,
+                hasDevice: !!device,
+                hasDeviceRef: !!deviceRef.current,
+                hasDeviceState: !!deviceState.device,
                 isRegistered: deviceState.isRegistered,
-                hasNumber: !!number
+                hasNumber: !!number,
+                deviceState: device?.state
             });
             return;
         }
@@ -232,7 +255,7 @@ export default function CallInterface() {
             }
 
             console.log('Call parameters:', params);
-            const call = await deviceState.device.connect(params);
+            const call = await device.connect(params);
             console.log('Call object created:', call);
             setActiveCall(call);
 

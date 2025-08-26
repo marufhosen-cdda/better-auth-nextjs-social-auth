@@ -14,6 +14,8 @@ const nextConfig = {
     "prisma",
     "@prisma/extension-accelerate",
   ],
+  // Enable React strict mode
+  reactStrictMode: false,
 
   // Image optimization
   images: {
