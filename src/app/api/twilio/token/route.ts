@@ -17,8 +17,7 @@ export async function POST(request: NextRequest) {
 
         const accountSid = process.env.TWILIO_ACCOUNT_SID;
         const apiKey = process.env.TWIML_API_KEY;
-        // const apiSecret = process.env.TWILIO_API_KEY_SECRET;
-        const apiSecret = process.env.TWILIO_AUTH_TOKEN;
+        const apiSecret = process.env.TWILIO_API_KEY_SECRET;
         const twimlAppSid = process.env.TWIML_APP_SID;
 
         if (!accountSid || !apiKey || !apiSecret || !twimlAppSid) {
