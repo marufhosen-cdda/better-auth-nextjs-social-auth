@@ -62,7 +62,7 @@ export default function CallInterface() {
 
     const initializeTwilioDevice = async () => {
         try {
-            const response = await fetch(`https://better-auth-nextjs-social-auth.vercel.app/api/twilio/token`, {
+            const response = await fetch('/api/twilio/token', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ identity: session?.user.id })
@@ -189,7 +189,7 @@ export default function CallInterface() {
         try {
             const newHoldState = !callState.isOnHold;
 
-            await fetch('https://better-auth-nextjs-social-auth.vercel.app/api/twilio/hold', {
+            await fetch('/api/twilio/hold', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -208,7 +208,7 @@ export default function CallInterface() {
         if (!callForwardNumber || !callState.callSid) return;
 
         try {
-            await fetch('https://better-auth-nextjs-social-auth.vercel.app/api/twilio/forward', {
+            await fetch('/api/twilio/forward', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -223,7 +223,7 @@ export default function CallInterface() {
 
     const startConference = async (participants: string[]) => {
         try {
-            const response = await fetch('https://better-auth-nextjs-social-auth.vercel.app/api/twilio/conference', {
+            const response = await fetch('/api/twilio/conference', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -243,7 +243,7 @@ export default function CallInterface() {
         if (!conference) return;
 
         try {
-            await fetch('https://better-auth-nextjs-social-auth.vercel.app/api/twilio/conference/add', {
+            await fetch('/api/twilio/conference/add', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
