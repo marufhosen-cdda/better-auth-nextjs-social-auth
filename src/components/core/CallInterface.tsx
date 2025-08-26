@@ -5,6 +5,13 @@ import { useState, useEffect, useRef } from "react";
 import { authClient } from "@/lib/auth-client";
 import { Device } from "@twilio/voice-sdk";
 
+// Extend Window interface for twilioDevice
+declare global {
+    interface Window {
+        twilioDevice?: Device;
+    }
+}
+
 interface CallState {
     isConnected: boolean;
     isIncoming: boolean;
@@ -302,7 +309,29 @@ export default function CallInterface() {
         }
     };
 
-    if (!session) return null;
+    const debugDeviceState = () => {
+        console.log('=== DEVICE STATE DEBUG ===');
+        console.log('React state device:', !!device);
+        console.log('Device object:', device);
+        console.log('Device state:', device?.state);
+        console.log('Device isBusy:', device?.isBusy);
+        console.log('Session user ID:', session?.user?.id);
+        console.log('Call state:', callState);
+        console.log('Active call:', activeCall);
+
+        // Try to access the actual Twilio device from window if available
+        if (window && window.twilioDevice) {
+            console.log('Window device state:', window.twilioDevice.state);
+            console.log('Window device ready:', window.twilioDevice.state === 'registered');
+        }
+    };
+
+    // Store device in window for debugging
+    useEffect(() => {
+        if (device) {
+            window.twilioDevice = device;
+        }
+    }, [device]);
 
     return (
         <div className="max-w-md mx-auto bg-white rounded-2xl shadow-xl overflow-hidden">
@@ -455,7 +484,7 @@ export default function CallInterface() {
                         {/* Conference Calling */}
                         <div className="mb-6">
                             <button
-                                onClick={() => startConference([session.user.id])}
+                                onClick={() => session?.user?.id && startConference([session.user.id])}
                                 className="w-full bg-purple-500 hover:bg-purple-600 text-white p-3 rounded-lg transition-all"
                             >
                                 Start Conference Call
