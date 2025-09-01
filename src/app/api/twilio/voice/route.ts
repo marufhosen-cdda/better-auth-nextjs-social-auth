@@ -60,25 +60,56 @@ import { NextResponse } from "next/server";
 import twilio from "twilio";
 
 export async function POST(req: Request) {
-    const bodyText = await req.text();
-    const params = new URLSearchParams(bodyText);
+    try {
+        // Try parsing as JSON first
+        let params: any = {};
 
-    // now you get your params
-    const to = params.get("customTo");   // ✅ this will contain callTo
-    const from = params.get("fromUser"); // ✅ caller id
+        try {
+            params = await req.json();
+            console.log("Parsed as JSON:", params);
+        } catch (jsonError) {
+            console.log("Not JSON, trying form data...");
 
-    console.log("Incoming call params:", { to, from });
+            // If JSON fails, try form data
+            const bodyText = await req.text();
+            console.log("Raw body:", bodyText);
 
-    const twiml = new twilio.twiml.VoiceResponse();
+            const urlParams = new URLSearchParams(bodyText);
+            params = Object.fromEntries(urlParams.entries());
+            console.log("Parsed as form data:", params);
+        }
 
-    if (to) {
-        const dial = twiml.dial();
-        dial.client(to); // route to the recipient identity
-    } else {
-        twiml.say("No recipient specified");
+        // Twilio often sends parameters in different cases and formats
+        const to = params.To || params.to || params.Called || params.called;
+        const from = params.From || params.from || params.Caller || params.caller;
+        const foo = params.Foo || params.foo;
+
+        console.log("Extracted params:", { to, from, foo });
+        console.log("All available params:", params);
+
+        const twiml = new twilio.twiml.VoiceResponse();
+
+        if (to) {
+            console.log("Dialing to:", to);
+            const dial = twiml.dial();
+            dial.client(to);
+        } else {
+            console.log("No recipient found, available params:", Object.keys(params));
+            twiml.say("No recipient specified");
+        }
+
+        return new NextResponse(twiml.toString(), {
+            headers: { "Content-Type": "text/xml" },
+        });
+
+    } catch (error) {
+        console.error("Webhook error:", error);
+
+        const twiml = new twilio.twiml.VoiceResponse();
+        twiml.say("An error occurred");
+
+        return new NextResponse(twiml.toString(), {
+            headers: { "Content-Type": "text/xml" },
+        });
     }
-
-    return new NextResponse(twiml.toString(), {
-        headers: { "Content-Type": "text/xml" },
-    });
 }
