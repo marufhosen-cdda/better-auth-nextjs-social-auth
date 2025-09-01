@@ -26,7 +26,11 @@ function TwilioCall() {
         if (!session?.user.id) return;
 
         const initDevice = async () => {
-            const res = await fetch("/api/twilio/token");
+            const res = await fetch("/api/twilio/token", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ identity: session.user.id }),
+            });
             const { token } = await res.json();
 
             const twilioDevice = new Device(token, {
