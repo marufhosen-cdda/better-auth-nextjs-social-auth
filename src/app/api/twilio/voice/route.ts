@@ -63,16 +63,17 @@ export async function POST(req: Request) {
     const bodyText = await req.text();
     const params = new URLSearchParams(bodyText);
 
-    const to = params.get("To");       // "user123"
-    const from = params.get("From");   // "user999"
-    const foo = params.get("Foo");     // "bar"
+    // now you get your params
+    const to = params.get("customTo");   // ✅ this will contain callTo
+    const from = params.get("fromUser"); // ✅ caller id
 
-    console.log("Incoming call params:", { to, from, foo });
+    console.log("Incoming call params:", { to, from });
 
     const twiml = new twilio.twiml.VoiceResponse();
+
     if (to) {
         const dial = twiml.dial();
-        dial.client(to); // route to target user
+        dial.client(to); // route to the recipient identity
     } else {
         twiml.say("No recipient specified");
     }

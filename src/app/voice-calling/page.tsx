@@ -54,14 +54,14 @@ function TwilioCall() {
     }, [session?.user.id]);
 
     const makeCall = () => {
-        if (device) {
+        if (device && callTo) {
             device.connect({
-                To: callTo,
-                From: session?.user.id,
-                Foo: "bar"
+                customTo: callTo,             // 👈 use your own param name
+                fromUser: session?.user.id,   // 👈 sender identity
             } as any);
         }
     };
+
 
 
     return (
