@@ -60,17 +60,19 @@ import { NextResponse } from "next/server";
 import twilio from "twilio";
 
 export async function POST(req: Request) {
-    const body = await req.formData(); // Twilio sends x-www-form-urlencoded
-    const to = "1F09IOqtD6aHmfjygX92mT7TDx2pIozb"
+    const bodyText = await req.text();
+    const params = new URLSearchParams(bodyText);
 
-    console.log("Voice webhook called with To:", body);
+    const to = params.get("To");       // "user123"
+    const from = params.get("From");   // "user999"
+    const foo = params.get("Foo");     // "bar"
 
+    console.log("Incoming call params:", { to, from, foo });
 
     const twiml = new twilio.twiml.VoiceResponse();
-
     if (to) {
         const dial = twiml.dial();
-        dial.client(to); // route to recipient identity
+        dial.client(to); // route to target user
     } else {
         twiml.say("No recipient specified");
     }
