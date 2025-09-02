@@ -509,6 +509,7 @@ export default function CallInterface() {
                         <div className={`w-3 h-3 rounded-full ${connectionStatus.color}`}></div>
                         <span className="text-sm">{connectionStatus.text}</span>
                     </div>
+                    <p>User Id: {session?.user?.id}</p>
                 </div>
 
                 {/* Debug Controls */}

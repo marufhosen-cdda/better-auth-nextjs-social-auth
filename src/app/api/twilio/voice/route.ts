@@ -8,11 +8,15 @@ export async function POST(request: NextRequest) {
         console.log('Voice webhook called');
 
         console.log('Parsing form data-- Form data', await request.formData());
-        console.log('Parsing form data-- Body data', await request.text());
-        // console.log('Parsing form data-- Body data', await request.body());
+        console.log('Parsing form data-- Text data', await request.text());
+        console.log('Parsing form data-- Body data', request.body);
 
 
         const formData = await request.formData();
+
+        console.log('Parsed form data:', formData);
+
+
         const To = formData.get('To') as string;
         const From = formData.get('From') as string;
         const isAppToApp = formData.get('isAppToApp') === 'true';
